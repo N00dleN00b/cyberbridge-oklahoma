@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phishing Spotter · CyberBridge Oklahoma</title>
+<meta name="description" content="A free game for spotting phishing and scam messages. Part of CyberBridge Oklahoma.">
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1d2433; --muted: #5b6475;
+    --brand: #1f4e79; --brand-ink: #ffffff; --safe: #1e7a46; --scam: #b42318;
+    --line: #dcd7cc; --chip: #eef2f7; --focus: #f2a900;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161f; --card:#1b2130; --ink:#e9edf5; --muted:#a3acbd; --brand:#7fb2e5; --brand-ink:#0d1420;
+            --safe:#5cc98b; --scam:#ff7b6e; --line:#2c3446; --chip:#232b3c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  header h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  header p { margin: 0 0 20px; color: var(--muted); }
+  .bar { display:flex; justify-content:space-between; align-items:center; font-size:.95rem; color:var(--muted); margin-bottom:10px; }
+  .progress { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-bottom:18px; }
+  .progress > div { height:100%; background:var(--brand); width:0; transition:width .3s; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .kind { display:inline-block; font-size:.8rem; font-weight:600; letter-spacing:.02em; text-transform:uppercase;
+          background:var(--chip); color:var(--muted); padding:3px 9px; border-radius:999px; margin-bottom:10px; }
+  .from { font-size:.92rem; color:var(--muted); margin-bottom:8px; word-break:break-word; }
+  .from b { color:var(--ink); }
+  .msg { white-space:pre-wrap; margin:0; word-break:break-word; }
+  .link { color:var(--brand); text-decoration:underline; }
+  .actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; }
+  button { font:inherit; font-weight:700; border:0; border-radius:12px; padding:14px; cursor:pointer; }
+  button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  .b-safe { background:var(--safe); color:#fff; }
+  .b-scam { background:var(--scam); color:#fff; }
+  .b-next { background:var(--brand); color:var(--brand-ink); width:100%; margin-top:16px; }
+  button:disabled { opacity:.45; cursor:default; }
+  .feedback { margin-top:16px; padding:14px; border-radius:12px; border:1px solid var(--line); display:none; }
+  .feedback.show { display:block; }
+  .feedback h2 { font-size:1.1rem; margin:0 0 6px; }
+  .feedback ul { margin:6px 0 0; padding-left:20px; }
+  .right h2 { color:var(--safe); } .wrong h2 { color:var(--scam); }
+  .end { text-align:center; }
+  .end .score { font-size:3rem; font-weight:800; margin:8px 0; }
+  .tips { text-align:left; }
+  footer { margin-top:28px; font-size:.85rem; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🛡️ Phishing Spotter</h1>
+    <p>Safe or scam? Read each message and decide. Every company, number and link here is made up.</p>
+  </header>
+
+  <div id="game">
+    <div class="bar"><span id="count"></span><span id="scoreline"></span></div>
+    <div class="progress"><div id="prog"></div></div>
+    <article class="card" aria-live="polite">
+      <span class="kind" id="kind"></span>
+      <div class="from" id="from"></div>
+      <p class="msg" id="msg"></p>
+    </article>
+    <div class="actions">
+      <button class="b-safe" id="btnSafe">✅ Safe</button>
+      <button class="b-scam" id="btnScam">🚩 Scam</button>
+    </div>
+    <div class="feedback" id="feedback" role="status"></div>
+    <button class="b-next" id="btnNext" hidden>Next message →</button>
+  </div>
+
+  <div id="end" class="card end" hidden>
+    <h2>You finished!</h2>
+    <div class="score" id="final"></div>
+    <p id="verdict"></p>
+    <div class="tips">
+      <h3>Remember: SLAM</h3>
+      <ul>
+        <li><b>S</b>ender: is it really who it claims to be?</li>
+        <li><b>L</b>inks: does the real address match? Is it misspelled?</li>
+        <li><b>A</b>ttachments: were you expecting it?</li>
+        <li><b>M</b>essage: is it rushing you, scaring you, or asking for codes, passwords or money?</li>
+      </ul>
+      <p><b>Not sure? Stop. Think. Check it another way.</b> Open the app or website yourself, or ask a trusted adult.</p>
+    </div>
+    <button class="b-next" id="btnAgain">Play again</button>
+  </div>
+
+  <footer>CyberBridge Oklahoma · by Bristie Rahman · Free to use (MIT / CC BY 4.0)</footer>
+</main>
+
+<script>
+// Add new scenarios here. answer: "safe" or "scam". All names, numbers and links must be fictional.
+const SCENARIOS = [
+  { kind:"Text message", from:"(405) 555-0182",
+    msg:"OKTurnpike: You have an unpaid toll of $4.15. Pay within 24 hours to avoid a $50 late fee: [okturnpike-pay.co/settle]",
+    answer:"scam",
+    clues:["Rushes you with a 24-hour deadline and a scary fee","Look-alike website, not an official one","Small amount makes it seem harmless"] },
+  { kind:"In-game DM", from:"xX_SkinDrop_Xx",
+    msg:"yo im giving away FREE skins to the first 20 ppl!! just log in here so i can send them: [free-skins-drop.gg]",
+    answer:"scam",
+    clues:["Too good to be true","Asks you to log in through a link: this is how gaming accounts get stolen"] },
+  { kind:"Email", from:"Front Office &lt;office@yourschool.k12.ok.us&gt;",
+    msg:"Reminder: Picture day is Thursday. Order forms are available in the front office.",
+    answer:"safe",
+    clues:["Expected sender and normal tone","No link, no request for info or money"] },
+  { kind:"Text message", from:"Unknown number",
+    msg:"Hey it's Jordan! I accidentally sent my verification code to your number, can you send it back to me real quick?",
+    answer:"scam",
+    clues:["Never share a login code with anyone","That code is the key to YOUR account; they're trying to take it over"] },
+  { kind:"Email", from:"Careers Team &lt;hiring.remote2026@freemail.example&gt;",
+    msg:"Congratulations! You've been selected for a remote job: $45/hour, no experience needed. Reply with your full name, date of birth and bank info for direct deposit.",
+    answer:"scam",
+    clues:["Too good to be true","Asks for sensitive info before any real interview","Free email address, not a company domain"] },
+  { kind:"App notification", from:"Your bank's official app (you opened it yourself)",
+    msg:"New sign-in on a Windows device. Was this you? [Yes] [No, secure my account]",
+    answer:"safe",
+    clues:["It's inside the official app you opened yourself","This is a detective control doing its job: if it wasn't you, change your password from inside the app"] },
+  { kind:"Voicemail", from:"Unknown number",
+    msg:"Grandma, it's me! I'm in trouble and I need bail money. Please don't tell Mom. Can you buy gift cards and read me the numbers?",
+    answer:"scam",
+    clues:["Panic + secrecy + gift cards = classic scam","Voices can be cloned with AI","Hang up and call the family member on a number you know; use a family code word"] },
+  { kind:"Email", from:"Micros0ft Support &lt;security@micros0ft-help.example&gt;",
+    msg:"Your account will be DELETED today. Verify now: microsoft.com/verify\n(Hovering over the link shows: account-verify-help.example)",
+    answer:"scam",
+    clues:["Sender misspelled with a zero","Urgent threat","The real link address doesn't match what it says"] },
+  { kind:"Email to school staff", from:"Payroll Dept &lt;payroll@district-hr-portal.example&gt;",
+    msg:"Action required: Update your direct deposit information before Friday's payroll or your paycheck will be delayed. Sign in with your district email password here.",
+    answer:"scam",
+    clues:["A common attack on school districts","Outside domain pretending to be HR","Urgency + asks for your password; verify by calling HR directly"] },
+  { kind:"Text message", from:"Your coach (saved contact)",
+    msg:"Practice moved to 4:30 tomorrow because of the storm. See you there!",
+    answer:"safe",
+    clues:["Known contact, normal message","No link, no request for anything"] },
+  { kind:"Pop-up on a website", from:"Browser pop-up",
+    msg:"⚠️ VIRUS DETECTED! Your computer is infected. Call Windows Support now at 1-800-555-0199. Do not close this window.",
+    answer:"scam",
+    clues:["Real security software doesn't ask you to call a phone number","Scare tactics","Close the tab (or the browser) and tell a trusted adult"] },
+  { kind:"Email", from:"Patient Portal &lt;noreply@okhealth-records.example&gt;",
+    msg:"We detected a problem with your medical records. Download the attached file 'Records_Update.zip' and enter your Social Security number to confirm your identity.",
+    answer:"scam",
+    clues:["Unexpected attachment (.zip)","Asks for your Social Security number","Health data is a top target; log in to your real patient portal directly instead"] }
+];
+
+let order = [], i = 0, score = 0, answered = false;
+const $ = id => document.getElementById(id);
+
+function shuffle(a){ for(let k=a.length-1;k>0;k--){const j=Math.floor(Math.random()*(k+1));[a[k],a[j]]=[a[j],a[k]];} return a; }
+function linkify(t){ return t.replace(/\[([^\]]+)\]/g,'<span class="link">$1</span>'); }
+function escapeExceptEntities(t){ return t.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function start(){
+  order = shuffle(SCENARIOS.map((_,k)=>k)); i = 0; score = 0;
+  $('end').hidden = true; $('game').hidden = false; show();
+}
+function show(){
+  answered = false;
+  const s = SCENARIOS[order[i]];
+  $('count').textContent = `Message ${i+1} of ${order.length}`;
+  $('scoreline').textContent = `Score: ${score}`;
+  $('prog').style.width = (i/order.length*100)+'%';
+  $('kind').textContent = s.kind;
+  $('from').innerHTML = 'From: <b>' + s.from + '</b>';
+  $('msg').innerHTML = linkify(escapeExceptEntities(s.msg));
+  $('feedback').className = 'feedback'; $('feedback').innerHTML = '';
+  $('btnSafe').disabled = $('btnScam').disabled = false;
+  $('btnNext').hidden = true;
+  $('btnSafe').focus();
+}
+function choose(c){
+  if(answered) return; answered = true;
+  const s = SCENARIOS[order[i]], ok = c === s.answer;
+  if(ok) score++;
+  $('scoreline').textContent = `Score: ${score}`;
+  $('btnSafe').disabled = $('btnScam').disabled = true;
+  const f = $('feedback');
+  f.className = 'feedback show ' + (ok ? 'right' : 'wrong');
+  f.innerHTML = `<h2>${ok ? 'Correct!' : 'Not quite.'} This one is ${s.answer === 'scam' ? 'a SCAM 🚩' : 'SAFE ✅'}</h2>`
+    + '<ul>' + s.clues.map(c => `<li>${c}</li>`).join('') + '</ul>';
+  $('btnNext').hidden = false;
+  $('btnNext').textContent = i === order.length-1 ? 'See my score →' : 'Next message →';
+  $('btnNext').focus();
+}
+function next(){
+  i++;
+  if(i >= order.length){ finish(); return; }
+  show();
+}
+function finish(){
+  $('prog').style.width = '100%';
+  $('game').hidden = true; $('end').hidden = false;
+  $('final').textContent = `${score} / ${order.length}`;
+  const pct = score / order.length;
+  $('verdict').textContent = pct === 1 ? 'Perfect! You are officially a Protector. Now teach someone at home.'
+    : pct >= .75 ? 'Great work. Scammers would have a hard time with you.'
+    : pct >= .5 ? 'Good start. Review the SLAM tips below and try again.'
+    : 'Scammers are tricky, and that’s why we practice. Review the tips and play again!';
+  $('btnAgain').focus();
+}
+$('btnSafe').onclick = () => choose('safe');
+$('btnScam').onclick = () => choose('scam');
+$('btnNext').onclick = next;
+$('btnAgain').onclick = start;
+document.addEventListener('keydown', e => {
+  if($('game').hidden) return;
+  if(!answered && (e.key==='s'||e.key==='S')) choose('safe');
+  else if(!answered && (e.key==='x'||e.key==='X')) choose('scam');
+});
+start();
+</script>
+</body>
+</html>
